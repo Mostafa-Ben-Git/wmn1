@@ -6,6 +6,7 @@ import { defineConfig } from "vite"
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  base: '/wmn1/', 
   build: {
     outDir: 'build', // Change this to 'build' from the default 'dist'
     emptyOutDir: true,
