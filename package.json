@@ -2,7 +2,7 @@
   "name": "my-react-app",
   "private": true,
   "version": "0.0.0",
-  "homepage": "https://kosdfsd.github.io/wmn1",
+  "homepage": "https://kosdfsd.github.io/wmn1/",
   "type": "module",
   "scripts": {
     "dev": "vite",
