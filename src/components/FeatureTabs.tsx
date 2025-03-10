@@ -22,6 +22,8 @@ import {
   LinkIcon,
   FileTextIcon,
   Paintbrush,
+  ReplaceIcon,
+  UndoIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast, Toaster } from "sonner";
@@ -318,7 +320,7 @@ export function FeatureTabs(): JSX.Element {
   const [showResults, setShowResults] = useState(false);
 
   // Toggle send type selection
-  const toggleSendType = (type : string) => {
+  const toggleSendType = (type: string) => {
     if (sendTypes.includes(type)) {
       setSendTypes(sendTypes.filter((t) => t !== type));
     } else {
@@ -342,6 +344,49 @@ Return Path: ${returnPath}
 From Path: ${fromPath}
 Deploy ID : ${deployId}
 Offer : ${offer}`;
+
+  const [domainReplacement, setDomainReplacement] = useState("");
+  const [originalCleanHtml, setOriginalCleanHtml] = useState("");
+  const [originalSourceHtml, setOriginalSourceHtml] = useState("");
+  const [originalInnerText, setOriginalInnerText] = useState("");
+  const [hasReplacedDomains, setHasReplacedDomains] = useState(false);
+
+  const replaceDomains = () => {
+    if (!domainReplacement.trim()) return;
+
+    const domainRegex = /(https?:\/\/)([\w-]+(\.[\w-]+)+)/gi;
+
+    if (!hasReplacedDomains) {
+      setOriginalCleanHtml(extractedClean);
+      setOriginalSourceHtml(extractedHtml);
+      setOriginalInnerText(extractedText);
+    }
+
+    const newCleanHtml = extractedClean?.replace(
+      domainRegex,
+      (protocol) => `${protocol}${domainReplacement}`
+    );
+    const newSourceHtml = extractedHtml?.replace(
+      domainRegex,
+      (protocol) => `${protocol}${domainReplacement}`
+    );
+    const newInnerText = extractedText?.replace(
+      domainRegex,
+      (protocol) => `${protocol}${domainReplacement}`
+    );
+
+    setExtractedClean(newCleanHtml);
+    setExtractedHtml(newSourceHtml);
+    setExtractedText(newInnerText);
+    setHasReplacedDomains(true);
+  };
+
+  const revertDomainChanges = () => {
+    if (originalCleanHtml) setExtractedClean(originalCleanHtml);
+    if (originalSourceHtml) setExtractedHtml(originalSourceHtml);
+    if (originalInnerText) setExtractedText(originalInnerText);
+    setHasReplacedDomains(false);
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-4">
@@ -942,6 +987,31 @@ Offer : ${offer}`;
                     </ToggleGroup>
                   </div>
 
+                  <div className="flex items-center space-x-2">
+                    <Input
+                      placeholder="Replace domain with..."
+                      value={domainReplacement}
+                      onChange={(e) => setDomainReplacement(e.target.value)}
+                      className="w-48"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={replaceDomains}
+                      disabled={!extractedClean || !domainReplacement.trim()}
+                    >
+                      <ReplaceIcon className="h-4 w-4 mr-1" /> Replace
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={revertDomainChanges}
+                      disabled={!hasReplacedDomains}
+                    >
+                      <UndoIcon className="h-4 w-4 mr-1" /> Revert
+                    </Button>
+                  </div>
+
                   {extractionMode === "source" && (
                     <div className="relative">
                       <Label className="text-sm font-medium mb-2 block">
@@ -960,7 +1030,6 @@ Offer : ${offer}`;
                         size="sm"
                         className="absolute right-2 top-8"
                         onClick={() => copyToClipboard(extractedHtml)}
-                        type="button"
                       >
                         <CopyIcon className="h-4 w-4" />
                       </Button>
@@ -985,7 +1054,6 @@ Offer : ${offer}`;
                         size="sm"
                         className="absolute right-2 top-8"
                         onClick={() => copyToClipboard(extractedText)}
-                        type="button"
                       >
                         <CopyIcon className="h-4 w-4" />
                       </Button>
@@ -994,12 +1062,14 @@ Offer : ${offer}`;
 
                   {extractionMode === "clean" && (
                     <div className="relative">
-                      <Label className="text-sm font-medium mb-2 block">
-                        Clean HTML{" "}
-                        <Badge variant="outline">
-                          {extractedClean ? "Extracted" : "None"}
-                        </Badge>
-                      </Label>
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-sm font-medium">
+                          Clean HTML{" "}
+                          <Badge variant="outline">
+                            {extractedText ? "Extracted" : "None"}
+                          </Badge>
+                        </Label>
+                      </div>
                       <Textarea
                         value={extractedClean}
                         readOnly
@@ -1010,7 +1080,6 @@ Offer : ${offer}`;
                         size="sm"
                         className="absolute right-2 top-8"
                         onClick={() => copyToClipboard(extractedClean)}
-                        type="button"
                       >
                         <CopyIcon className="h-4 w-4" />
                       </Button>
