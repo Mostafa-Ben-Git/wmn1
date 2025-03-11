@@ -8,6 +8,7 @@ import RandomStringGenerator from "./features/randomString/RandomStringGenerator
 import HtmlExtractor from "./features/htmlExtractor/HtmlExtractor";
 import Details from "./features/details/Details";
 import { ThemeToggle } from "./components/ThemeToggle";
+import Conversions from "./features/reports/Conversions";
 
 const App: React.FC = () => {
   return (
@@ -17,16 +18,17 @@ const App: React.FC = () => {
           <ThemeToggle />
         </header>
 
-        <div className="w-full max-w-3xl">
+        <div className="w-full max-w-6xl">
           <h1 className="text-3xl font-bold mb-6 text-center">WMN1 Tools 🛠️</h1>
           <Tabs defaultValue="extraction" className="w-full">
-            <TabsList className="grid w-full grid-cols-4 mb-6">
+            <TabsList className="grid w-full grid-cols-5 mb-6">
               <TabsTrigger value="extraction">Extraction Tool</TabsTrigger>
               <TabsTrigger value="details">Details</TabsTrigger>
               <TabsTrigger value="randomstring">
                 Random String Generator
               </TabsTrigger>
               <TabsTrigger value="htmlextractor">HTML Extractor</TabsTrigger>
+              <TabsTrigger value="conversions">Conversions</TabsTrigger>
             </TabsList>
 
             <TabsContent value="extraction">
@@ -43,6 +45,10 @@ const App: React.FC = () => {
 
             <TabsContent value="htmlextractor">
               <HtmlExtractor />
+            </TabsContent>
+
+            <TabsContent value="conversions">
+              <Conversions />
             </TabsContent>
           </Tabs>
         </div>
