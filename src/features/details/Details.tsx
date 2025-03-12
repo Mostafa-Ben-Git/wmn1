@@ -96,7 +96,7 @@ Offer : ${offer}`;
           <Textarea
             id="inputField"
             value={inputField}
-            onChange={(e) => setInputField(e.target.value)}
+            onChange={(e) => dispatch(setInputField(e.target.value))}
             className="w-full h-24"
             placeholder="Enter input data here..."
           />
