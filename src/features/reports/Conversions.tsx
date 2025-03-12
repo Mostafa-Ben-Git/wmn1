@@ -65,7 +65,6 @@ import {
   setDateRange,
   setPage,
   setRowsPerPage,
-  setSortField,
 } from "./conversionsSlice";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -349,33 +348,6 @@ const Conversions: React.FC = () => {
     setSelectAll(false);
   };
 
-  // Handle sort header click
-  const handleSortClick = (field: string) => {
-    dispatch(setSortField(field));
-  };
-
-  // Render sort indicator
-  const renderSortIndicator = (field: string) => {
-    if (sortField !== field) return null;
-    return sortDirection === "asc" ? " ↑" : " ↓";
-  };
-
-  // Handle select all toggle
-  const handleSelectAllChange = () => {
-    setSelectAll(!selectAll);
-  };
-
-  // Handle individual row selection
-  const handleRowSelect = (id: number) => {
-    const newSelected = new Set(selectedConversions);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedConversions(newSelected);
-  };
-
   // Handle refresh
   const handleRefresh = () => {
     fetchReportsData();
@@ -468,56 +440,26 @@ const Conversions: React.FC = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12">
-                  <input
-                    type="checkbox"
-                    checked={selectAll}
-                    onChange={handleSelectAllChange}
-                    disabled={isLoading || conversions.length === 0}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
+                <TableHead className="cursor-pointer hover:bg-muted">
+                  ID
                 </TableHead>
-                <TableHead
-                  className="cursor-pointer hover:bg-muted"
-                  onClick={() => handleSortClick("conversion_id")}
-                >
-                  ID {renderSortIndicator("conversion_id")}
+                <TableHead className="cursor-pointer hover:bg-muted">
+                  Date
                 </TableHead>
-                <TableHead
-                  className="cursor-pointer hover:bg-muted"
-                  onClick={() => handleSortClick("conversion_date")}
-                >
-                  Date {renderSortIndicator("conversion_date")}
+                <TableHead className="cursor-pointer hover:bg-muted">
+                  Offer ID
                 </TableHead>
-                <TableHead
-                  className="cursor-pointer hover:bg-muted"
-                  onClick={() => handleSortClick("offer_id")}
-                >
-                  Offer ID {renderSortIndicator("offer_id")}
+                <TableHead className="cursor-pointer hover:bg-muted">
+                  Offer Name
                 </TableHead>
-                <TableHead
-                  className="cursor-pointer hover:bg-muted"
-                  onClick={() => handleSortClick("offer_name")}
-                >
-                  Offer Name {renderSortIndicator("offer_name")}
+                <TableHead className="cursor-pointer hover:bg-muted">
+                  Mailer
                 </TableHead>
-                <TableHead
-                  className="cursor-pointer hover:bg-muted"
-                  onClick={() => handleSortClick("subid_1")}
-                >
-                  SubID 1 {renderSortIndicator("subid_1")}
+                <TableHead className="cursor-pointer hover:bg-muted">
+                  Entity
                 </TableHead>
-                <TableHead
-                  className="cursor-pointer hover:bg-muted"
-                  onClick={() => handleSortClick("subid_3")}
-                >
-                  SubID 3 {renderSortIndicator("subid_3")}
-                </TableHead>
-                <TableHead
-                  className="cursor-pointer hover:bg-muted text-right"
-                  onClick={() => handleSortClick("price")}
-                >
-                  Price {renderSortIndicator("price")}
+                <TableHead className="cursor-pointer hover:bg-muted text-right">
+                  Price
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -569,18 +511,6 @@ const Conversions: React.FC = () => {
                         : ""
                     }
                   >
-                    <TableCell>
-                      <input
-                        type="checkbox"
-                        checked={selectedConversions.has(
-                          conversion.conversion_id
-                        )}
-                        onChange={() =>
-                          handleRowSelect(conversion.conversion_id)
-                        }
-                        className="h-4 w-4 rounded border-gray-300"
-                      />
-                    </TableCell>
                     <TableCell className="font-medium">
                       {conversion.conversion_id}
                     </TableCell>
@@ -592,9 +522,9 @@ const Conversions: React.FC = () => {
                       {conversion.offer_name}
                     </TableCell>
                     <TableCell className="font-mono text-xs">
-                      {conversion.subid_1}
+                      {conversion.mailer_id}
                     </TableCell>
-                    <TableCell>{conversion.subid_3}</TableCell>
+                    <TableCell>{conversion.entity_id}</TableCell>
                     <TableCell className="text-right font-medium">
                       ${conversion.price.toFixed(2)}
                     </TableCell>
@@ -608,7 +538,7 @@ const Conversions: React.FC = () => {
         {/* Pagination */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            Page {currentPage} of {totalPages || 1}
+            Page {totalPages + 1 - currentPage} of {totalPages || 1}
           </div>
           <div className="flex items-center gap-2">
             <div className="flex">
@@ -646,8 +576,7 @@ const Conversions: React.FC = () => {
               </Button>
             </div>
             <span className="text-sm text-muted-foreground">
-              Showing {Math.min((currentPage - 1) * rowsPerPage + 1, totalRows)}{" "}
-              to {Math.min(currentPage * rowsPerPage, totalRows)} of {totalRows}
+            Showing {(currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, totalRows)} of {totalRows}
             </span>
           </div>
         </div>

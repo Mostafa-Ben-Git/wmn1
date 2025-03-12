@@ -1,7 +1,17 @@
+
+export interface ConversionsResponse {
+  row_count: number;
+  data: ConversionData[];
+  success: boolean;
+  message: string | null;
+}
+
+
+// conversionsSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { endOfToday, format, startOfToday} from "date-fns";
+import { endOfToday, format, startOfToday } from "date-fns";
 import { fetchReports } from "./conversionsThunks";
-import { ConversionsState } from "@/types";
+import { ConversionsState, ConversionData } from "@/types";
 
 // Create the slice
 const reportsSlice = createSlice({
@@ -85,12 +95,15 @@ const reportsSlice = createSlice({
 });
 
 // Function to sort conversions
-const sortConversions = (conversions: any[], sortField: string, sortDirection: 'asc' | 'desc') => {
-  return conversions.sort((a, b) => {
-    if (a[sortField] < b[sortField]) {
+const sortConversions = (conversions: ConversionData[], sortField: string, sortDirection: 'asc' | 'desc') => {
+  return [...conversions].sort((a, b) => {
+    const valueA = a[sortField as keyof ConversionData] as string;
+    const valueB = b[sortField as keyof ConversionData] as string;
+    
+    if (valueA < valueB) {
       return sortDirection === 'asc' ? -1 : 1;
     }
-    if (a[sortField] > b[sortField]) {
+    if (valueA > valueB) {
       return sortDirection === 'asc' ? 1 : -1;
     }
     return 0;

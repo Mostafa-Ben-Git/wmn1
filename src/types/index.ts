@@ -17,24 +17,27 @@ export interface AttributeData {
 
 export interface ConversionsResponse {
   row_count: number;
-  data: Conversion[];
+  data: ConversionData[];
   success: boolean;
   message: string | null;
 }
 
-export interface Conversion {
+export interface ConversionData {
   conversion_id: number;
   conversion_date: string;
   offer_id: number;
   offer_name: string;
-  subid_1: string;
-  subid_3: string;
+  deploy_id: string;
+  mailer_id: string;
+  entity_id: string;
+  subid_3?: string;
+  subid_1?: string;
   price: number;
 }
 
 
 export interface ConversionsState {
-  conversions: Conversion[];
+  conversions: ConversionData[];
   totalRows: number;
   isLoading: boolean;
   error: string | null;
