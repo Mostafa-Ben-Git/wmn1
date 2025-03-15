@@ -21,6 +21,11 @@ import {
   ChevronDown,
   Download,
   RefreshCw,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -65,10 +70,15 @@ import {
   setDateRange,
   setPage,
   setRowsPerPage,
+  setSorting,
+  selectPaginatedConversions,
+  selectConversionsState,
 } from "./conversionsSlice";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRange } from "react-day-picker";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ConversionData, SortDirection } from "@/types";
 
 // Date range presets
 type DateRangePreset = {
@@ -180,13 +190,13 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
     if (selectedRange?.from && selectedRange?.to) {
       setDate({ from: selectedRange.from, to: selectedRange.to });
       onRangeChange({ from: selectedRange.from, to: selectedRange.to });
+      setOpen(false);
     }
   };
 
   // Apply preset
   const applyPreset = (preset: DateRangePreset) => {
     const newRange = preset.getValue();
-    console.log(newRange);
     setDate(newRange);
     onRangeChange(newRange);
     setOpen(false);
@@ -254,11 +264,13 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
   );
 };
 
-// Reports Component
+// Conversions Component
 const Conversions: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
+  const conversionsState = useSelector(selectConversionsState);
+  const paginatedConversions = useSelector(selectPaginatedConversions);
+
   const {
-    conversions,
     totalRows,
     isLoading,
     error,
@@ -268,22 +280,23 @@ const Conversions: React.FC = () => {
     rowsPerPage,
     sortField,
     sortDirection,
-  } = useSelector((state: RootState) => state.reports);
+  } = conversionsState;
 
   const [selectedConversions, setSelectedConversions] = useState<Set<number>>(
     new Set()
   );
   const [selectAll, setSelectAll] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
 
   // Load initial data
   useEffect(() => {
     fetchReportsData();
-  }, [currentPage, rowsPerPage, sortField, sortDirection, startDate, endDate]);
+  }, [currentPage, rowsPerPage, startDate, endDate, sortField, sortDirection]);
 
   // Show error notifications
   useEffect(() => {
     if (error) {
-      toast.error("Error", {
+      toast.error("Error loading data", {
         description: error,
       });
     }
@@ -293,14 +306,14 @@ const Conversions: React.FC = () => {
   useEffect(() => {
     if (selectAll) {
       const newSelected = new Set<number>();
-      conversions.forEach((conversion) => {
+      paginatedConversions.forEach((conversion) => {
         newSelected.add(conversion.conversion_id);
       });
       setSelectedConversions(newSelected);
     } else {
       setSelectedConversions(new Set());
     }
-  }, [selectAll, conversions]);
+  }, [selectAll, paginatedConversions]);
 
   // Fetch reports data
   const fetchReportsData = () => {
@@ -311,16 +324,18 @@ const Conversions: React.FC = () => {
         page: currentPage,
         limit: rowsPerPage,
         sortField,
+        sortDirection,
       })
     );
+    setLastRefreshTime(new Date());
   };
 
   // Handle date range change
   const handleDateRangeChange = (range: { from: Date; to: Date }) => {
     dispatch(
       setDateRange({
-        startDate: format(range.from, "yyyy-MM-dd'T'HH:mm:ss.SS"),
-        endDate: format(range.to, "yyyy-MM-dd'T'HH:mm:ss.SS"),
+        startDate: format(range.from, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+        endDate: format(range.to, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
       })
     );
   };
@@ -330,22 +345,24 @@ const Conversions: React.FC = () => {
 
   // Format date for display
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return format(date, "MMM dd, yyyy HH:mm:ss");
+    try {
+      const date = new Date(dateString);
+      return format(date, "MMM dd, yyyy HH:mm:ss");
+    } catch (e) {
+      return "Invalid date";
+    }
   };
 
   // Handle page change
   const handlePageChange = (newPage: number) => {
-    dispatch(setPage(newPage));
-    setSelectedConversions(new Set());
-    setSelectAll(false);
+    if (newPage >= 1 && newPage <= totalPages) {
+      dispatch(setPage(newPage));
+    }
   };
 
   // Handle rows per page change
   const handleRowsPerPageChange = (value: string) => {
     dispatch(setRowsPerPage(parseInt(value)));
-    setSelectedConversions(new Set());
-    setSelectAll(false);
   };
 
   // Handle refresh
@@ -354,33 +371,110 @@ const Conversions: React.FC = () => {
     toast.success("Data refreshed successfully");
   };
 
+  // Handle sort
+  const handleSort = (field: keyof ConversionData) => {
+    const newDirection: SortDirection =
+      field === sortField && sortDirection === "asc" ? "desc" : "asc";
+
+    dispatch(setSorting({ field, direction: newDirection }));
+  };
+
+  // Handle selection toggle
+  const toggleSelection = (id: number) => {
+    setSelectedConversions((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  // Handle select all toggle
+  const toggleSelectAll = () => {
+    setSelectAll(!selectAll);
+  };
+
   // Export selected conversions
   const handleExport = () => {
-    // Implementation would depend on your export requirements
-    const selectedItems = conversions.filter((c) =>
-      selectedConversions.has(c.conversion_id)
-    );
-
-    if (selectedItems.length === 0) {
+    if (selectedConversions.size === 0) {
       toast.warning("Please select at least one conversion to export");
       return;
     }
 
-    toast.success(`Exporting ${selectedItems.length} conversions`);
+    const selectedItems = paginatedConversions.filter((c) =>
+      selectedConversions.has(c.conversion_id)
+    );
 
-    // Here you would implement the actual export logic
-    // This could be CSV, Excel, etc.
+    // Create CSV content
+    const headers = [
+      "ID",
+      "Date",
+      "Offer ID",
+      "Offer Name",
+      "Mailer",
+      "Entity",
+      "Price",
+    ];
+    const csvRows = [headers];
+
+    selectedItems.forEach((item) => {
+      csvRows.push([
+        item.conversion_id.toString(),
+        item.conversion_date,
+        item.offer_id.toString(),
+        item.offer_name,
+        item.mailer_id,
+        item.entity_id,
+        item.price.toString(),
+      ]);
+    });
+
+    const csvContent = csvRows.map((row) => row.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    // Create download link
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute(
+      "download",
+      `conversions_export_${format(new Date(), "yyyy-MM-dd")}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.success(`Exported ${selectedItems.length} conversions`);
   };
 
+  // Get sort indicator
+  const getSortIndicator = (field: keyof ConversionData) => {
+    if (field !== sortField) return null;
+
+    return <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>;
+  };
+
+  // Check if current page is valid
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      handlePageChange(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
   return (
-    <Card className="border-2">
+    <Card className="border border-gray-200 shadow-sm">
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
             <CardTitle className="text-2xl">Conversion Reports</CardTitle>
             <CardDescription>
               View and analyze your conversion data over time{" "}
-              <span className="text-1xl font-bold">[Just For CX3ads]</span>
+              <Badge variant="outline" className="ml-2">
+                CX3ads
+              </Badge>
             </CardDescription>
           </div>
           <div className="flex gap-2">
@@ -390,7 +484,9 @@ const Conversions: React.FC = () => {
               onClick={handleRefresh}
               disabled={isLoading}
             >
-              <RefreshCw className="h-4 w-4 mr-2" />
+              <RefreshCw
+                className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")}
+              />
               Refresh
             </Button>
             <Button
@@ -400,7 +496,7 @@ const Conversions: React.FC = () => {
               disabled={selectedConversions.size === 0 || isLoading}
             >
               <Download className="h-4 w-4 mr-2" />
-              Export Selected
+              Export Selected ({selectedConversions.size})
             </Button>
           </div>
         </div>
@@ -415,12 +511,13 @@ const Conversions: React.FC = () => {
 
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="px-2 py-1">
-              {totalRows} total conversions
+              {totalRows.toLocaleString()} total conversions
             </Badge>
             <span className="text-sm">Rows per page:</span>
             <Select
               value={rowsPerPage.toString()}
               onValueChange={handleRowsPerPageChange}
+              disabled={isLoading}
             >
               <SelectTrigger className="w-[80px]">
                 <SelectValue placeholder="10" />
@@ -440,26 +537,49 @@ const Conversions: React.FC = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="cursor-pointer hover:bg-muted">
-                  ID
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selectAll}
+                    onCheckedChange={toggleSelectAll}
+                    disabled={isLoading || paginatedConversions.length === 0}
+                    aria-label="Select all conversions"
+                  />
                 </TableHead>
-                <TableHead className="cursor-pointer hover:bg-muted">
-                  Date
+                <TableHead
+                  className="cursor-pointer hover:bg-muted"
+                  onClick={() => handleSort("offer_id")}
+                >
+                  Offer ID {getSortIndicator("offer_id")}
                 </TableHead>
-                <TableHead className="cursor-pointer hover:bg-muted">
-                  Offer ID
+                <TableHead
+                  className="cursor-pointer hover:bg-muted"
+                  onClick={() => handleSort("offer_name")}
+                >
+                  Offer Name {getSortIndicator("offer_name")}
                 </TableHead>
-                <TableHead className="cursor-pointer hover:bg-muted">
-                  Offer Name
+                <TableHead
+                  className="cursor-pointer hover:bg-muted"
+                  onClick={() => handleSort("conversion_date")}
+                >
+                  Date {getSortIndicator("conversion_date")}
                 </TableHead>
-                <TableHead className="cursor-pointer hover:bg-muted">
-                  Mailer
+                <TableHead
+                  className="cursor-pointer hover:bg-muted"
+                  onClick={() => handleSort("mailer_id")}
+                >
+                  Mailer {getSortIndicator("mailer_id")}
                 </TableHead>
-                <TableHead className="cursor-pointer hover:bg-muted">
-                  Entity
+                <TableHead
+                  className="cursor-pointer hover:bg-muted"
+                  onClick={() => handleSort("entity_id")}
+                >
+                  Entity {getSortIndicator("entity_id")}
                 </TableHead>
-                <TableHead className="cursor-pointer hover:bg-muted text-right">
-                  Price
+                <TableHead
+                  className="cursor-pointer hover:bg-muted text-right"
+                  onClick={() => handleSort("price")}
+                >
+                  Price {getSortIndicator("price")}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -473,7 +593,7 @@ const Conversions: React.FC = () => {
                         <Skeleton className="h-4 w-4" />
                       </TableCell>
                       <TableCell>
-                        <Skeleton className="h-5 w-16" />
+                        <Skeleton className="h-5 w-8" />
                       </TableCell>
                       <TableCell>
                         <Skeleton className="h-5 w-32" />
@@ -495,14 +615,14 @@ const Conversions: React.FC = () => {
                       </TableCell>
                     </TableRow>
                   ))
-              ) : conversions.length === 0 ? (
+              ) : paginatedConversions.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center h-40">
                     No conversions found for the selected date range
                   </TableCell>
                 </TableRow>
               ) : (
-                conversions.map((conversion) => (
+                paginatedConversions.map((conversion) => (
                   <TableRow
                     key={conversion.conversion_id}
                     className={
@@ -511,16 +631,36 @@ const Conversions: React.FC = () => {
                         : ""
                     }
                   >
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedConversions.has(
+                          conversion.conversion_id
+                        )}
+                        onCheckedChange={() =>
+                          toggleSelection(conversion.conversion_id)
+                        }
+                        aria-label={`Select conversion ${conversion.conversion_id}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">
-                      {conversion.conversion_id}
+                      {conversion.offer_id}
+                    </TableCell>
+                    <TableCell
+                      className="max-w-xs truncate"
+                      title={conversion.offer_name}
+                    >
+                      {conversion.offer_name}
+                    </TableCell>
+                    <TableCell
+                      className="max-w-xs truncate"
+                      title={conversion.offer_name}
+                    >
+                      {conversion.sponsor_name}
                     </TableCell>
                     <TableCell>
                       {formatDate(conversion.conversion_date)}
                     </TableCell>
-                    <TableCell>{conversion.offer_id}</TableCell>
-                    <TableCell className="max-w-xs truncate">
-                      {conversion.offer_name}
-                    </TableCell>
+                    <TableCell>{conversion.mailer_id}</TableCell>
                     <TableCell className="font-mono text-xs">
                       {conversion.mailer_id}
                     </TableCell>
@@ -538,51 +678,65 @@ const Conversions: React.FC = () => {
         {/* Pagination */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            Page {totalPages + 1 - currentPage} of {totalPages || 1}
+            Page {currentPage} of {totalPages || 1}
           </div>
           <div className="flex items-center gap-2">
             <div className="flex">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handlePageChange(totalPages)}
-                disabled={currentPage >= totalPages || isLoading}
+                onClick={() => handlePageChange(1)}
+                disabled={currentPage <= 1 || isLoading || totalPages === 0}
               >
-                First
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage >= totalPages || isLoading}
-              >
-                Previous
+                <ChevronsLeft className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage <= 1 || isLoading}
+                disabled={currentPage <= 1 || isLoading || totalPages === 0}
               >
-                Next
+                <ChevronLeft className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handlePageChange(1)}
-                disabled={currentPage <= 1 || isLoading}
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={
+                  currentPage >= totalPages || isLoading || totalPages === 0
+                }
               >
-                Last
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(totalPages)}
+                disabled={
+                  currentPage >= totalPages || isLoading || totalPages === 0
+                }
+              >
+                <ChevronsRight className="h-4 w-4" />
               </Button>
             </div>
             <span className="text-sm text-muted-foreground">
-            Showing {(currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, totalRows)} of {totalRows}
+              {totalRows > 0 ? (
+                <>
+                  Showing {(currentPage - 1) * rowsPerPage + 1} to{" "}
+                  {Math.min(currentPage * rowsPerPage, totalRows)} of{" "}
+                  {totalRows.toLocaleString()}
+                </>
+              ) : (
+                "No data to display"
+              )}
             </span>
           </div>
         </div>
       </CardContent>
-      <CardFooter className="text-xs text-muted-foreground flex justify-center">
-        Last updated: {format(new Date(), "MMM dd, yyyy HH:mm:ss")}
+      <CardFooter className="text-xs text-muted-foreground flex justify-between">
+        <span>
+          Last refreshed: {format(lastRefreshTime, "MMM dd, yyyy HH:mm:ss")}
+        </span>
       </CardFooter>
     </Card>
   );

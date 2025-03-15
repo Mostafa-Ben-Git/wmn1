@@ -3,7 +3,7 @@ import extractionReducer from '@/features/extraction/extractionSlice';
 import randomStringReducer from '@/features/randomString/randomStringSlice';
 import htmlExtractorReducer from '@/features/htmlExtractor/htmlExtractorSlice';
 import detailsReducer from '@/features/details/detailsSlice';
-import rereportsReducer from '@/features/reports/conversionsSlice';
+import conversionReducer from '@/features/reports/conversionsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -11,7 +11,7 @@ export const store = configureStore({
     randomString: randomStringReducer,
     htmlExtractor: htmlExtractorReducer,
     details: detailsReducer,
-    reports : rereportsReducer
+    conversions : conversionReducer
   },
   
 });

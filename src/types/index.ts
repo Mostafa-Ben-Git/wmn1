@@ -33,11 +33,12 @@ export interface ConversionData {
   subid_3?: string;
   subid_1?: string;
   price: number;
+  sponsor_name : string
 }
 
 
 export interface ConversionsState {
-  conversions: ConversionData[];
+  conversionsData: ConversionData[];
   totalRows: number;
   isLoading: boolean;
   error: string | null;
