@@ -46,6 +46,6 @@ export interface ConversionsState {
   endDate: string;
   currentPage: number;
   rowsPerPage: number;
-  sortField: string;
+  sortField: keyof ConversionData ;
   sortDirection: 'asc' | 'desc';
 }

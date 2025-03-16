@@ -14,31 +14,27 @@ const initialState: ConversionsState = {
   endDate: format(endOfToday(), "yyyy-MM-dd'T'HH:mm:ss.SSS"),
   currentPage: 1,
   rowsPerPage: 10,
-  sortField: 'conversion_date',
-  sortDirection: 'desc',
+  sortField: "conversion_date",
+  sortDirection: "asc",
 };
 
 // Create the slice
 const conversionsSlice = createSlice({
-  name: 'conversions',
+  name: "conversions",
   initialState,
   reducers: {
-    setDateRange: (state, action: PayloadAction<{startDate: string; endDate: string}>) => {
+    setDateRange: (
+      state,
+      action: PayloadAction<{ startDate: string; endDate: string }>
+    ) => {
       state.startDate = action.payload.startDate;
       state.endDate = action.payload.endDate;
-      state.currentPage = 1; // Reset to first page when changing date range
     },
     setPage: (state, action: PayloadAction<number>) => {
       state.currentPage = action.payload;
     },
     setRowsPerPage: (state, action: PayloadAction<number>) => {
       state.rowsPerPage = action.payload;
-      state.currentPage = 1; // Reset to first page when changing rows per page
-    },
-    setSorting: (state, action: PayloadAction<{field: keyof ConversionData; direction: SortDirection}>) => {
-      state.sortField = action.payload.field;
-      state.sortDirection = action.payload.direction;
-      state.currentPage = 1; // Reset to first page when changing sort
     },
     clearConversions: (state) => {
       state.conversionsData = [];
@@ -53,116 +49,142 @@ const conversionsSlice = createSlice({
         sortField: initialState.sortField,
         sortDirection: initialState.sortDirection,
       };
-    }
+    },
+    setSortField: (state, action: PayloadAction<keyof ConversionData>) => {
+      if (state.sortField === action.payload) {
+        // Toggle sort direction if the same field is clicked again
+        state.sortDirection = state.sortDirection === "asc" ? "desc" : "asc";
+      } else {
+        // Default to ascending order when a new field is selected
+        state.sortField = action.payload;
+        state.sortDirection = "asc";
+      }
+    },
   },
+
   extraReducers: (builder) => {
     builder
       .addCase(fetchReports.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(fetchReports.fulfilled, (state, action: PayloadAction<{data: ConversionData[], row_count: number}>) => {
-        state.isLoading = false;
+      .addCase(
+        fetchReports.fulfilled,
+        (
+          state,
+          action: PayloadAction<{ data: ConversionData[]; row_count: number }>
+        ) => {
+          state.isLoading = false;
 
-        // Create a map for faster lookup
-        const existingConversionsMap = new Map(
-          state.conversionsData.map(conversion => [conversion.conversion_id, conversion])
-        );
-        
-        // Process incoming conversions to prevent duplicates
-        const updatedConversions = action.payload.data.map(newConversion => {
-          // If a conversion with this ID already exists, merge the data (preferring new data)
-          const existingConversion = existingConversionsMap.get(newConversion.conversion_id);
-          if (existingConversion) {
-            return {
-              ...existingConversion,
+          const existingConversionsMap = new Map(
+            state.conversionsData.map((conversion) => [
+              conversion.conversion_id,
+              conversion,
+            ])
+          );
+          
+          // Update existing entries with new data
+          action.payload.data.forEach((newConversion) => {
+            existingConversionsMap.set(newConversion.conversion_id, {
+              ...(existingConversionsMap.get(newConversion.conversion_id) || {}),
               ...newConversion,
-              // Add updated timestamp to track when data was last updated
-              last_updated: new Date().toISOString(),
-            };
-          }
-          // Otherwise, use the new conversion data
-          return {
-            ...newConversion,
-            last_updated: new Date().toISOString(),
-          };
-        });
-        
-        // Replace state with the updated conversions
-        state.conversionsData = updatedConversions;
-        state.totalRows = action.payload.row_count;
-      })
+            });
+          });
+          const updatedConversions = Array.from(existingConversionsMap.values())
+          // Convert map back to array
+          state.conversionsData = updatedConversions;
+          state.currentPage = Math.ceil(
+            updatedConversions.length / state.rowsPerPage
+          );
+          state.totalRows = action.payload.row_count;
+        }
+      )
       .addCase(fetchReports.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload as string || 'An unknown error occurred';
+        state.error = action.error.message || "An unknown error occurred";
       });
-  }
+  },
 });
 
 // Selectors
-export const selectConversions = (state: RootState) => state.conversions.conversionsData;
+export const selectConversions = (state: RootState) =>
+  state.conversions.conversionsData;
+
 export const selectSortedConversions = (state: RootState) => {
   const { conversionsData, sortField, sortDirection } = state.conversions;
   return sortConversions(conversionsData, sortField, sortDirection);
 };
+
 export const selectPaginatedConversions = (state: RootState) => {
-  const { currentPage, rowsPerPage, conversionsData, sortField, sortDirection } = state.conversions;
+  const {
+    currentPage,
+    rowsPerPage,
+    conversionsData,
+    sortField,
+    sortDirection,
+  } = state.conversions;
   const sorted = sortConversions(conversionsData, sortField, sortDirection);
   const startIndex = (currentPage - 1) * rowsPerPage;
-  return sorted.slice(startIndex, startIndex + rowsPerPage);
+  return sorted.slice(startIndex, startIndex + rowsPerPage).reverse();
 };
+
 export const selectConversionsState = (state: RootState) => state.conversions;
-export const selectIsLoading = (state: RootState) => state.conversions.isLoading;
+
+
+export const selectIsLoading = (state: RootState) =>
+  state.conversions.isLoading;
 export const selectError = (state: RootState) => state.conversions.error;
 
 // Helper function to sort conversions
-const sortConversions = (conversions: ConversionData[], sortField: keyof string, sortDirection:string) => {
+const isDate = (value: unknown): value is Date => {
+  return value instanceof Date;
+};
+
+const sortConversions = (
+  conversions: ConversionData[],
+  sortField: keyof ConversionData,
+  sortDirection: "asc" | "desc"
+) => {
   return [...conversions].sort((a, b) => {
     const valueA = a[sortField];
     const valueB = b[sortField];
-    
-    // Handle null/undefined values
+
     if (valueA == null && valueB == null) return 0;
-    if (valueA == null) return sortDirection === 'asc' ? -1 : 1;
-    if (valueB == null) return sortDirection === 'asc' ? 1 : -1;
-    
-    // Handle different data types
-    if (typeof valueA === 'string' && typeof valueB === 'string') {
-      return sortDirection === 'asc' 
+    if (valueA == null) return sortDirection === "asc" ? -1 : 1;
+    if (valueB == null) return sortDirection === "asc" ? 1 : -1;
+
+    if (typeof valueA === "string" && typeof valueB === "string") {
+      return sortDirection === "asc"
         ? valueA.localeCompare(valueB)
         : valueB.localeCompare(valueA);
     }
-    
-    if (typeof valueA === 'number' && typeof valueB === 'number') {
-      return sortDirection === 'asc' 
-        ? valueA - valueB
-        : valueB - valueA;
+
+    if (typeof valueA === "number" && typeof valueB === "number") {
+      return sortDirection === "asc" ? valueA - valueB : valueB - valueA;
     }
-    
-    // Handle dates
-    if (valueA instanceof Date && valueB instanceof Date) {
-      return sortDirection === 'asc'
+
+    // Use the type guard to check if values are Date objects
+    if (isDate(valueA) && isDate(valueB)) {
+      return sortDirection === "asc"
         ? valueA.getTime() - valueB.getTime()
         : valueB.getTime() - valueA.getTime();
     }
-    
-    // Convert to string for any other types
+
     const strA = String(valueA);
     const strB = String(valueB);
-    
-    return sortDirection === 'asc'
+    return sortDirection === "asc"
       ? strA.localeCompare(strB)
       : strB.localeCompare(strA);
   });
 };
 
-export const { 
-  setDateRange, 
-  setPage, 
+export const {
+  setDateRange,
+  setPage,
   setRowsPerPage,
-  setSorting,
+  setSortField,
   clearConversions,
-  resetFilters
+  resetFilters,
 } = conversionsSlice.actions;
 
 export default conversionsSlice.reducer;

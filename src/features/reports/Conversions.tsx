@@ -1,27 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { RootState, AppDispatch } from "@/app/store";
+import { AppDispatch } from "@/app/store";
 import {
-  format,
-  subDays,
-  startOfWeek,
-  endOfWeek,
-  startOfMonth,
-  endOfMonth,
-  subMonths,
-  subYears,
-  isAfter,
-  startOfToday,
-  endOfToday,
-  endOfYesterday,
-  startOfYesterday,
-} from "date-fns";
-import {
-  Calendar as CalendarIcon,
-  ChevronDown,
-  Download,
+  Calendar as Download,
   RefreshCw,
-  ArrowUpDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -29,12 +11,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Card,
   CardHeader,
@@ -58,213 +34,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { fetchReports } from "./conversionsThunks";
 import {
   setDateRange,
   setPage,
   setRowsPerPage,
-  setSorting,
   selectPaginatedConversions,
   selectConversionsState,
+  setSortField,
 } from "./conversionsSlice";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DateRange } from "react-day-picker";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ConversionData, SortDirection } from "@/types";
+import { ConversionData } from "@/types";
+import DateRangePicker from "./DateRangePicker";
+import { format } from "date-fns";
 
-// Date range presets
-type DateRangePreset = {
-  label: string;
-  getValue: () => { from: Date; to: Date };
-};
-
-const dateRangePresets: DateRangePreset[] = [
-  {
-    label: "Today",
-    getValue: () => {
-      return { from: startOfToday(), to: endOfToday() };
-    },
-  },
-  {
-    label: "Yesterday",
-    getValue: () => {
-      return { from: startOfYesterday(), to: endOfYesterday() };
-    },
-  },
-  {
-    label: "Current Week",
-    getValue: () => {
-      const now = new Date();
-      return { from: startOfWeek(now, { weekStartsOn: 1 }), to: now };
-    },
-  },
-  {
-    label: "Last Week",
-    getValue: () => {
-      const now = new Date();
-      const start = startOfWeek(subDays(now, 7), { weekStartsOn: 1 });
-      const end = endOfWeek(start, { weekStartsOn: 1 });
-      return { from: start, to: end };
-    },
-  },
-  {
-    label: "Current Month",
-    getValue: () => {
-      const now = new Date();
-      return { from: startOfMonth(now), to: now };
-    },
-  },
-  {
-    label: "Last Month",
-    getValue: () => {
-      const now = new Date();
-      const lastMonth = subMonths(now, 1);
-      return { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) };
-    },
-  },
-  {
-    label: "Last 3 Months",
-    getValue: () => {
-      const now = new Date();
-      return { from: startOfMonth(subMonths(now, 2)), to: now };
-    },
-  },
-  {
-    label: "This Year",
-    getValue: () => {
-      const now = new Date();
-      return { from: new Date(now.getFullYear(), 0, 1), to: now };
-    },
-  },
-  {
-    label: "Last Year",
-    getValue: () => {
-      const now = new Date();
-      const lastYear = subYears(now, 1);
-      return {
-        from: new Date(lastYear.getFullYear(), 0, 1),
-        to: new Date(lastYear.getFullYear(), 11, 31),
-      };
-    },
-  },
-];
-
-// DateRangePicker Component
-interface DateRangePickerProps {
-  startDate: Date | undefined;
-  endDate: Date | undefined;
-  onRangeChange: (range: { from: Date; to: Date }) => void;
-}
-
-const DateRangePicker: React.FC<DateRangePickerProps> = ({
-  startDate,
-  endDate,
-  onRangeChange,
-}) => {
-  const [date, setDate] = useState<{ from: Date; to: Date }>(() => {
-    const today = new Date();
-    return {
-      from: startDate || today,
-      to: endDate || today,
-    };
-  });
-  const [open, setOpen] = useState(false);
-
-  // Update when external state changes
-  useEffect(() => {
-    if (startDate && endDate) {
-      setDate({ from: startDate, to: endDate });
-    }
-  }, [startDate, endDate]);
-
-  // Handle date selection
-  const handleSelect = (selectedRange: DateRange | undefined) => {
-    if (selectedRange?.from && selectedRange?.to) {
-      setDate({ from: selectedRange.from, to: selectedRange.to });
-      onRangeChange({ from: selectedRange.from, to: selectedRange.to });
-      setOpen(false);
-    }
-  };
-
-  // Apply preset
-  const applyPreset = (preset: DateRangePreset) => {
-    const newRange = preset.getValue();
-    setDate(newRange);
-    onRangeChange(newRange);
-    setOpen(false);
-  };
-
-  const today = new Date();
-
-  return (
-    <div className="flex gap-2">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="w-[130px]">
-            Presets <ChevronDown className="ml-2 h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-56">
-          {dateRangePresets.map((preset) => (
-            <DropdownMenuItem
-              key={preset.label}
-              onClick={() => applyPreset(preset)}
-            >
-              {preset.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            id="date"
-            variant="outline"
-            className={cn(
-              "w-[240px] justify-start text-left font-normal",
-              !date && "text-muted-foreground"
-            )}
-          >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {date.from ? (
-              date.to ? (
-                <>
-                  {format(date.from, "LLL dd, y")} -{" "}
-                  {format(date.to, "LLL dd, y")}
-                </>
-              ) : (
-                format(date.from, "LLL dd, y")
-              )
-            ) : (
-              <span>Pick a date</span>
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            mode="range"
-            defaultMonth={date.from}
-            selected={{ from: date.from, to: date.to }}
-            onSelect={handleSelect}
-            numberOfMonths={2}
-            disabled={(date) => isAfter(date, today)}
-          />
-        </PopoverContent>
-      </Popover>
-    </div>
-  );
-};
-
-// Conversions Component
 const Conversions: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const conversionsState = useSelector(selectConversionsState);
@@ -288,10 +74,8 @@ const Conversions: React.FC = () => {
   const [selectAll, setSelectAll] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
 
-  // Load initial data
-  useEffect(() => {
-    fetchReportsData();
-  }, [currentPage, rowsPerPage, startDate, endDate, sortField, sortDirection]);
+  // Calculate total pages
+  const totalPages = Math.ceil(totalRows / rowsPerPage);
 
   // Show error notifications
   useEffect(() => {
@@ -302,32 +86,19 @@ const Conversions: React.FC = () => {
     }
   }, [error]);
 
-  // Update selected conversions when data changes
-  useEffect(() => {
-    if (selectAll) {
-      const newSelected = new Set<number>();
-      paginatedConversions.forEach((conversion) => {
-        newSelected.add(conversion.conversion_id);
-      });
-      setSelectedConversions(newSelected);
-    } else {
-      setSelectedConversions(new Set());
-    }
-  }, [selectAll, paginatedConversions]);
-
   // Fetch reports data
   const fetchReportsData = () => {
     dispatch(
       fetchReports({
         startDate,
         endDate,
-        page: currentPage,
-        limit: rowsPerPage,
+        page: 1,
+        limit: 10,
         sortField,
-        sortDirection,
       })
-    );
-    setLastRefreshTime(new Date());
+    ).then(() => {
+      setLastRefreshTime(new Date());
+    });
   };
 
   // Handle date range change
@@ -339,9 +110,6 @@ const Conversions: React.FC = () => {
       })
     );
   };
-
-  // Calculate total pages
-  const totalPages = Math.ceil(totalRows / rowsPerPage);
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -360,23 +128,28 @@ const Conversions: React.FC = () => {
     }
   };
 
+  // Handle sort header click
+  const handleSortClick = (field: keyof ConversionData) => {
+    dispatch(setSortField(field));
+  };
+
+  // Render sort indicator
+  const renderSortIndicator = (field: string) => {
+    if (sortField !== field) return null;
+    return sortDirection === "asc" ? " ↑" : " ↓";
+  };
+
   // Handle rows per page change
   const handleRowsPerPageChange = (value: string) => {
-    dispatch(setRowsPerPage(parseInt(value)));
+    const newRowsPerPage = parseInt(value);
+    dispatch(setRowsPerPage(newRowsPerPage));
+    dispatch(setPage(totalPages)); // Reset to the last page when rows per page changes
   };
 
   // Handle refresh
   const handleRefresh = () => {
     fetchReportsData();
     toast.success("Data refreshed successfully");
-  };
-
-  // Handle sort
-  const handleSort = (field: keyof ConversionData) => {
-    const newDirection: SortDirection =
-      field === sortField && sortDirection === "asc" ? "desc" : "asc";
-
-    dispatch(setSorting({ field, direction: newDirection }));
   };
 
   // Handle selection toggle
@@ -394,6 +167,12 @@ const Conversions: React.FC = () => {
 
   // Handle select all toggle
   const toggleSelectAll = () => {
+    if (selectAll) {
+      setSelectedConversions(new Set());
+    } else {
+      const allIds = paginatedConversions.map((c) => c.conversion_id);
+      setSelectedConversions(new Set(allIds));
+    }
     setSelectAll(!selectAll);
   };
 
@@ -414,6 +193,7 @@ const Conversions: React.FC = () => {
       "Date",
       "Offer ID",
       "Offer Name",
+      "Sponsor",
       "Mailer",
       "Entity",
       "Price",
@@ -426,6 +206,7 @@ const Conversions: React.FC = () => {
         item.conversion_date,
         item.offer_id.toString(),
         item.offer_name,
+        item.sponsor_name,
         item.mailer_id,
         item.entity_id,
         item.price.toString(),
@@ -448,13 +229,6 @@ const Conversions: React.FC = () => {
     document.body.removeChild(link);
 
     toast.success(`Exported ${selectedItems.length} conversions`);
-  };
-
-  // Get sort indicator
-  const getSortIndicator = (field: keyof ConversionData) => {
-    if (field !== sortField) return null;
-
-    return <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>;
   };
 
   // Check if current page is valid
@@ -547,39 +321,45 @@ const Conversions: React.FC = () => {
                 </TableHead>
                 <TableHead
                   className="cursor-pointer hover:bg-muted"
-                  onClick={() => handleSort("offer_id")}
+                  onClick={() => handleSortClick("offer_id")}
                 >
-                  Offer ID {getSortIndicator("offer_id")}
+                  Offer ID {renderSortIndicator("offer_id")}
                 </TableHead>
                 <TableHead
                   className="cursor-pointer hover:bg-muted"
-                  onClick={() => handleSort("offer_name")}
+                  onClick={() => handleSortClick("offer_name")}
                 >
-                  Offer Name {getSortIndicator("offer_name")}
+                  Offer Name {renderSortIndicator("offer_name")}
                 </TableHead>
                 <TableHead
                   className="cursor-pointer hover:bg-muted"
-                  onClick={() => handleSort("conversion_date")}
+                  onClick={() => handleSortClick("sponsor_name")}
                 >
-                  Date {getSortIndicator("conversion_date")}
+                  Sponsor{renderSortIndicator("sponsor_name")}
                 </TableHead>
                 <TableHead
                   className="cursor-pointer hover:bg-muted"
-                  onClick={() => handleSort("mailer_id")}
+                  onClick={() => handleSortClick("conversion_date")}
                 >
-                  Mailer {getSortIndicator("mailer_id")}
+                  Date {renderSortIndicator("conversion_date")}
                 </TableHead>
                 <TableHead
                   className="cursor-pointer hover:bg-muted"
-                  onClick={() => handleSort("entity_id")}
+                  onClick={() => handleSortClick("mailer_id")}
                 >
-                  Entity {getSortIndicator("entity_id")}
+                  Mailer {renderSortIndicator("mailer_id")}
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer hover:bg-muted"
+                  onClick={() => handleSortClick("entity_id")}
+                >
+                  Entity {renderSortIndicator("entity_id")}
                 </TableHead>
                 <TableHead
                   className="cursor-pointer hover:bg-muted text-right"
-                  onClick={() => handleSort("price")}
+                  onClick={() => handleSortClick("price")}
                 >
-                  Price {getSortIndicator("price")}
+                  Price {renderSortIndicator("price")}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -651,19 +431,11 @@ const Conversions: React.FC = () => {
                     >
                       {conversion.offer_name}
                     </TableCell>
-                    <TableCell
-                      className="max-w-xs truncate"
-                      title={conversion.offer_name}
-                    >
-                      {conversion.sponsor_name}
-                    </TableCell>
+                    <TableCell>{conversion.sponsor_name}</TableCell>
                     <TableCell>
                       {formatDate(conversion.conversion_date)}
                     </TableCell>
                     <TableCell>{conversion.mailer_id}</TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {conversion.mailer_id}
-                    </TableCell>
                     <TableCell>{conversion.entity_id}</TableCell>
                     <TableCell className="text-right font-medium">
                       ${conversion.price.toFixed(2)}
