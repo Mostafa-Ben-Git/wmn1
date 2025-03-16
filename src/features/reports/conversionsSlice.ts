@@ -1,4 +1,4 @@
-import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { createSelector, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { endOfToday, format, startOfToday } from "date-fns";
 import { fetchReports } from "./conversionsThunks";
 import { ConversionsState, ConversionData } from "@/types";
@@ -16,6 +16,7 @@ const initialState: ConversionsState = {
   rowsPerPage: 10,
   sortField: "conversion_date",
   sortDirection: "asc",
+  filterValue:"72"
 };
 
 // Create the slice
@@ -33,12 +34,23 @@ const conversionsSlice = createSlice({
     setPage: (state, action: PayloadAction<number>) => {
       state.currentPage = action.payload;
     },
+    setFilterValue: (state, action: PayloadAction<string>) => {
+      state.filterValue = action.payload;
+    },
     setRowsPerPage: (state, action: PayloadAction<number>) => {
       state.rowsPerPage = action.payload;
     },
     clearConversions: (state) => {
       state.conversionsData = [];
       state.totalRows = 0;
+    },
+    markConversionAsNotNew: (state, action: PayloadAction<number>) => {
+      const conversion = state.conversionsData.find(
+        (c) => c.conversion_id === action.payload
+      );
+      if (conversion) {
+        conversion.isNew = false;
+      }
     },
     resetFilters: (state) => {
       return {
@@ -75,27 +87,38 @@ const conversionsSlice = createSlice({
           action: PayloadAction<{ data: ConversionData[]; row_count: number }>
         ) => {
           state.isLoading = false;
-
+      
           const existingConversionsMap = new Map(
             state.conversionsData.map((conversion) => [
               conversion.conversion_id,
               conversion,
             ])
           );
-          
+      
           // Update existing entries with new data
           action.payload.data.forEach((newConversion) => {
-            existingConversionsMap.set(newConversion.conversion_id, {
-              ...(existingConversionsMap.get(newConversion.conversion_id) || {}),
-              ...newConversion,
-            });
+            const existingConversion = existingConversionsMap.get(newConversion.conversion_id);
+      
+            if (existingConversion) {
+              // If the conversion already exists, only update the `isNew` flag
+              existingConversionsMap.set(newConversion.conversion_id, {
+                ...existingConversion, // Keep the old data
+                isNew: false, // Mark as not new
+              });
+            } else {
+              // If it's a new conversion, add it to the map
+              existingConversionsMap.set(newConversion.conversion_id, {
+                ...newConversion,
+                conversion_date: newConversion.conversion_date.toString(), // Convert Date to string
+                isNew: true, // Mark as new
+              });
+            }
           });
-          const updatedConversions = Array.from(existingConversionsMap.values())
+      
           // Convert map back to array
+          const updatedConversions = Array.from(existingConversionsMap.values());
           state.conversionsData = updatedConversions;
-          state.currentPage = Math.ceil(
-            updatedConversions.length / state.rowsPerPage
-          );
+          state.currentPage = Math.ceil(updatedConversions.length / state.rowsPerPage);
           state.totalRows = action.payload.row_count;
         }
       )
@@ -110,23 +133,24 @@ const conversionsSlice = createSlice({
 export const selectConversions = (state: RootState) =>
   state.conversions.conversionsData;
 
-export const selectSortedConversions = (state: RootState) => {
-  const { conversionsData, sortField, sortDirection } = state.conversions;
-  return sortConversions(conversionsData, sortField, sortDirection);
-};
+export const selectSortedConversions = createSelector(
+  [selectConversions, (state: RootState) => state.conversions.sortField, (state: RootState) => state.conversions.sortDirection],
+  (conversionsData, sortField, sortDirection) => {
+    return sortConversions(conversionsData, sortField, sortDirection);
+  }
+);
 
-export const selectPaginatedConversions = (state: RootState) => {
-  const {
-    currentPage,
-    rowsPerPage,
-    conversionsData,
-    sortField,
-    sortDirection,
-  } = state.conversions;
-  const sorted = sortConversions(conversionsData, sortField, sortDirection);
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  return sorted.slice(startIndex, startIndex + rowsPerPage).reverse();
-};
+export const selectPaginatedConversions = createSelector(
+  [
+    selectSortedConversions,
+    (state: RootState) => state.conversions.currentPage,
+    (state: RootState) => state.conversions.rowsPerPage,
+  ],
+  (sortedConversions, currentPage, rowsPerPage) => {
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    return sortedConversions.slice(startIndex, startIndex + rowsPerPage).reverse();
+  }
+);
 
 export const selectConversionsState = (state: RootState) => state.conversions;
 
@@ -146,8 +170,14 @@ const sortConversions = (
   sortDirection: "asc" | "desc"
 ) => {
   return [...conversions].sort((a, b) => {
-    const valueA = a[sortField];
-    const valueB = b[sortField];
+    let valueA = a[sortField];
+    let valueB = b[sortField];
+
+    // Convert conversion_date to Date object if it's a string
+    if (sortField === "conversion_date" && typeof valueA === "string" && typeof valueB === "string") {
+      valueA = new Date(valueA);
+      valueB = new Date(valueB);
+    }
 
     if (valueA == null && valueB == null) return 0;
     if (valueA == null) return sortDirection === "asc" ? -1 : 1;
@@ -182,6 +212,8 @@ export const {
   setDateRange,
   setPage,
   setRowsPerPage,
+  setFilterValue,
+  markConversionAsNotNew,
   setSortField,
   clearConversions,
   resetFilters,

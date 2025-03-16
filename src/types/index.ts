@@ -24,7 +24,7 @@ export interface ConversionsResponse {
 
 export interface ConversionData {
   conversion_id: number;
-  conversion_date: string;
+  conversion_date: Date | string;
   offer_id: number;
   offer_name: string;
   deploy_id: string;
@@ -32,6 +32,7 @@ export interface ConversionData {
   entity_id: string;
   subid_3?: string;
   subid_1?: string;
+  isNew : boolean;
   price: number;
   sponsor_name : string
 }
@@ -48,4 +49,5 @@ export interface ConversionsState {
   rowsPerPage: number;
   sortField: keyof ConversionData ;
   sortDirection: 'asc' | 'desc';
+  filterValue : string
 }

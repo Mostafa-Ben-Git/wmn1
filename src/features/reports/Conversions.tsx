@@ -43,6 +43,8 @@ import {
   selectPaginatedConversions,
   selectConversionsState,
   setSortField,
+  markConversionAsNotNew,
+  setFilterValue,
 } from "./conversionsSlice";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -62,6 +64,7 @@ const Conversions: React.FC = () => {
     error,
     startDate,
     endDate,
+    filterValue,
     currentPage,
     rowsPerPage,
     sortField,
@@ -203,7 +206,7 @@ const Conversions: React.FC = () => {
     selectedItems.forEach((item) => {
       csvRows.push([
         item.conversion_id.toString(),
-        item.conversion_date,
+        item.conversion_date.toString(),
         item.offer_id.toString(),
         item.offer_name,
         item.sponsor_name,
@@ -238,6 +241,26 @@ const Conversions: React.FC = () => {
     }
   }, [totalPages, currentPage]);
 
+  // Function to handle the fade-out and mark as "not new"
+  const handleFadeOut = (conversionId: number) => {
+    setTimeout(() => {
+      dispatch(markConversionAsNotNew(conversionId));
+    }, 3000); // 3 seconds (matches the fade-out duration)
+  };
+
+  // Trigger fade-out for new conversions
+  useEffect(() => {
+    paginatedConversions.forEach((conversion) => {
+      if (conversion.isNew) {
+        handleFadeOut(conversion.conversion_id);
+      }
+    });
+  }, [paginatedConversions, dispatch]);
+
+  // Handle input change
+  const handleFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    dispatch(setFilterValue(event.target.value));
+  };
   return (
     <Card className="border border-gray-200 shadow-sm">
       <CardHeader>
@@ -248,6 +271,9 @@ const Conversions: React.FC = () => {
               View and analyze your conversion data over time{" "}
               <Badge variant="outline" className="ml-2">
                 CX3ads
+              </Badge>
+              <Badge variant="outline" className="ml-2">
+              Berserker
               </Badge>
             </CardDescription>
           </div>
@@ -283,6 +309,13 @@ const Conversions: React.FC = () => {
             onRangeChange={handleDateRangeChange}
           />
 
+            <input
+              type="text"
+              placeholder="Filter by Deploy ID, Mailer ID, or Entity ID"
+              value={filterValue}
+              onChange={handleFilterChange}
+              className="px-3 py-2 border rounded-md text-sm"
+            />
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="px-2 py-1">
               {totalRows.toLocaleString()} total conversions
@@ -347,6 +380,12 @@ const Conversions: React.FC = () => {
                   className="cursor-pointer hover:bg-muted"
                   onClick={() => handleSortClick("mailer_id")}
                 >
+                  Deploy {renderSortIndicator("deploy_id")}
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer hover:bg-muted"
+                  onClick={() => handleSortClick("mailer_id")}
+                >
                   Mailer {renderSortIndicator("mailer_id")}
                 </TableHead>
                 <TableHead
@@ -365,7 +404,7 @@ const Conversions: React.FC = () => {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                Array(rowsPerPage)
+                Array(rowsPerPage / 2)
                   .fill(0)
                   .map((_, i) => (
                     <TableRow key={i}>
@@ -402,46 +441,61 @@ const Conversions: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedConversions.map((conversion) => (
-                  <TableRow
-                    key={conversion.conversion_id}
-                    className={
-                      selectedConversions.has(conversion.conversion_id)
-                        ? "bg-muted/50"
-                        : ""
-                    }
-                  >
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedConversions.has(
-                          conversion.conversion_id
-                        )}
-                        onCheckedChange={() =>
-                          toggleSelection(conversion.conversion_id)
-                        }
-                        aria-label={`Select conversion ${conversion.conversion_id}`}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {conversion.offer_id}
-                    </TableCell>
-                    <TableCell
-                      className="max-w-xs truncate"
-                      title={conversion.offer_name}
+                paginatedConversions.map((conversion) => {
+                  const isMatch =
+                    conversion.deploy_id === filterValue ||
+                    conversion.mailer_id === filterValue ||
+                    conversion.entity_id === filterValue;
+
+                  return (
+                    <TableRow
+                      key={conversion.conversion_id}
+                      className={
+                        selectedConversions.has(conversion.conversion_id)
+                          ? "bg-muted/50"
+                          : isMatch
+                          ? "bg-green-700 text-accent-foreground" // Highlight matching rows
+                          : ""
+                      }
                     >
-                      {conversion.offer_name}
-                    </TableCell>
-                    <TableCell>{conversion.sponsor_name}</TableCell>
-                    <TableCell>
-                      {formatDate(conversion.conversion_date)}
-                    </TableCell>
-                    <TableCell>{conversion.mailer_id}</TableCell>
-                    <TableCell>{conversion.entity_id}</TableCell>
-                    <TableCell className="text-right font-medium">
-                      ${conversion.price.toFixed(2)}
-                    </TableCell>
-                  </TableRow>
-                ))
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedConversions.has(
+                            conversion.conversion_id
+                          )}
+                          onCheckedChange={() =>
+                            toggleSelection(conversion.conversion_id)
+                          }
+                          aria-label={`Select conversion ${conversion.conversion_id}`}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {conversion.offer_id}
+                      </TableCell>
+                      <TableCell
+                        className="max-w-xs truncate"
+                        title={conversion.offer_name}
+                      >
+                        {conversion.isNew && (
+                          <Badge className="mr-2 bg-blue-400 text-[8px] text-white animate-pulse duration-700 repeat-infinite">
+                            New
+                          </Badge>
+                        )}
+                        {conversion.offer_name}
+                      </TableCell>
+                      <TableCell>{conversion.sponsor_name}</TableCell>
+                      <TableCell>
+                        {formatDate(conversion.conversion_date.toString())}
+                      </TableCell>
+                      <TableCell>{conversion.deploy_id}</TableCell>
+                      <TableCell>{conversion.mailer_id}</TableCell>
+                      <TableCell>{conversion.entity_id}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        ${conversion.price.toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>

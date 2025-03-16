@@ -81,6 +81,7 @@ async function fetchCX3Data(
       mailer_id: subid1Parts.length > 3 ? subid1Parts[3] : "",
       entity_id: item.subid_3 || (subid1Parts.length > 4 ? subid1Parts[4] : ""),
       price: item.price,
+      isNew : limit <= 20,
       sponsor_name: "cx3Ads",
     };
   });
@@ -135,7 +136,7 @@ async function fetchEflowData(
   const data = await response.data;
 
   // Transform eFlow data to match our structure
-  const transformedData = data.conversions.map((item) => ({
+  const transformedData = data.conversions.map((item : any) => ({
     conversion_id: item.conversion_id,
     conversion_date: new Date(item.conversion_unix_timestamp * 1000),
     offer_id: item.relationship.offer.network_offer_id,
@@ -145,6 +146,7 @@ async function fetchEflowData(
     mailer_id: item.sub1.split("_")[3] || "",
     entity_id: item.sub3 || item.sub1.split("_")[4] || "",
     price: item.revenue,
+    isNew : limit <= 20,
     sponsor_name: "Berserker",
   }));
 
@@ -200,6 +202,8 @@ export const fetchReports = createAsyncThunk(
       ]);
 
       const mergedResponse = mergeAndGroupResultsByDate(eflowResult, cx3Result);
+
+      console.log(mergedResponse)
       return mergedResponse;
     } catch (error) {
       return rejectWithValue(
