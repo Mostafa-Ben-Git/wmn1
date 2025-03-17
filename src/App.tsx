@@ -9,7 +9,7 @@ import { ThemeToggle } from "./components/ThemeToggle";
 import Conversions from "./features/reports/Conversions";
 import { fetchReports } from "./features/reports/conversionsThunks";
 import { useDispatch, useSelector } from "react-redux";
-import { selectConversionsState } from "./features/reports/conversionsSlice";
+import { clearConversions, selectConversionsState } from "./features/reports/conversionsSlice";
 import { AppDispatch } from "./app/store";
 
 const App: React.FC = () => {
@@ -17,8 +17,9 @@ const App: React.FC = () => {
   const {startDate,endDate} = useSelector(selectConversionsState);
 
   useEffect(() => {
+    dispatch(clearConversions());
     dispatch(fetchReports({startDate,endDate}));
-  }, []);
+  }, [startDate,endDate,dispatch]);
 
   return (
     <div className="min-h-screen flex flex-col items-center p-3 bg-background text-foreground">

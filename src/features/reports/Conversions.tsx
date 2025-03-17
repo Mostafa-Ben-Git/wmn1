@@ -1,24 +1,23 @@
-import React, { useEffect, useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch } from "@/app/store";
-import {
-  Calendar as Download,
-  RefreshCw,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -27,31 +26,32 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+import { ConversionData } from "@/types";
+import { format } from "date-fns";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Calendar as Download,
+  RefreshCw,
+} from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { toast } from "sonner";
-import { fetchReports } from "./conversionsThunks";
 import {
+  markConversionAsNotNew,
+  selectConversionsState,
+  selectPaginatedConversions,
   setDateRange,
+  setFilterValue,
   setPage,
   setRowsPerPage,
-  selectPaginatedConversions,
-  selectConversionsState,
   setSortField,
-  markConversionAsNotNew,
-  setFilterValue,
 } from "./conversionsSlice";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ConversionData } from "@/types";
+import { fetchReports } from "./conversionsThunks";
 import DateRangePicker from "./DateRangePicker";
-import { format } from "date-fns";
 
 const Conversions: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -98,6 +98,7 @@ const Conversions: React.FC = () => {
         page: 1,
         limit: 10,
         sortField,
+        isNew: true,
       })
     ).then(() => {
       setLastRefreshTime(new Date());
@@ -120,16 +121,12 @@ const Conversions: React.FC = () => {
       const date = new Date(dateString);
       return format(date, "MMM dd, yyyy HH:mm:ss");
     } catch (e) {
+      console.error("Error formatting date:", e);
       return "Invalid date";
     }
   };
 
   // Handle page change
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      dispatch(setPage(newPage));
-    }
-  };
 
   // Handle sort header click
   const handleSortClick = (field: keyof ConversionData) => {
@@ -233,23 +230,27 @@ const Conversions: React.FC = () => {
 
     toast.success(`Exported ${selectedItems.length} conversions`);
   };
-
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      dispatch(setPage(newPage));
+    }
+  };
   // Check if current page is valid
   useEffect(() => {
     if (totalPages > 0 && currentPage > totalPages) {
       handlePageChange(totalPages);
     }
-  }, [totalPages, currentPage]);
-
-  // Function to handle the fade-out and mark as "not new"
-  const handleFadeOut = (conversionId: number) => {
-    setTimeout(() => {
-      dispatch(markConversionAsNotNew(conversionId));
-    }, 3000); // 3 seconds (matches the fade-out duration)
-  };
+  }, [totalPages, currentPage, dispatch]);
 
   // Trigger fade-out for new conversions
   useEffect(() => {
+    // Function to handle the fade-out and mark as "not new"
+    const handleFadeOut = (conversionId: number) => {
+      setTimeout(() => {
+        dispatch(markConversionAsNotNew(conversionId));
+      }, 5000); // 3 seconds (matches the fade-out duration)
+    };
+
     paginatedConversions.forEach((conversion) => {
       if (conversion.isNew) {
         handleFadeOut(conversion.conversion_id);
@@ -273,7 +274,7 @@ const Conversions: React.FC = () => {
                 CX3ads
               </Badge>
               <Badge variant="outline" className="ml-2">
-              Berserker
+                Berserker
               </Badge>
             </CardDescription>
           </div>
@@ -309,13 +310,19 @@ const Conversions: React.FC = () => {
             onRangeChange={handleDateRangeChange}
           />
 
-            <input
-              type="text"
-              placeholder="Filter by Deploy ID, Mailer ID, or Entity ID"
-              value={filterValue}
-              onChange={handleFilterChange}
-              className="px-3 py-2 border rounded-md text-sm"
-            />
+          <div className="flex items-center gap-2">
+            <label htmlFor="filter">
+              Shearch :
+            </label>
+          <input
+            type="text"
+            id="filter"
+            placeholder="Filter by Deploy ID, Mailer ID, or Entity ID"
+            value={filterValue}
+            onChange={handleFilterChange}
+            className="px-3 py-2 border rounded-md text-sm"
+          />
+          </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="px-2 py-1">
               {totalRows.toLocaleString()} total conversions
@@ -404,39 +411,42 @@ const Conversions: React.FC = () => {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                Array(rowsPerPage / 2)
+                Array(rowsPerPage)
                   .fill(0)
                   .map((_, i) => (
                     <TableRow key={i}>
-                      <TableCell>
-                        <Skeleton className="h-4 w-4" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-5 w-8" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-5 w-32" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-5 w-16" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-5 w-32" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-5 w-24" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-5 w-16" />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Skeleton className="h-5 w-16 ml-auto" />
-                      </TableCell>
-                    </TableRow>
+                    <TableCell>
+                      <Skeleton className="h-4 w-4 rounded-sm" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-20 rounded-sm" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-48 rounded-sm" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-20 rounded-sm" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-40 rounded-sm" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-20 rounded-sm" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-15 rounded-sm" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-10 rounded-sm" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Skeleton className="h-5 w-16 rounded-sm ml-auto" />
+                    </TableCell>
+                  </TableRow>
                   ))
               ) : paginatedConversions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center h-40">
+                  <TableCell colSpan={9} className="text-center h-40">
                     No conversions found for the selected date range
                   </TableCell>
                 </TableRow>
@@ -454,7 +464,7 @@ const Conversions: React.FC = () => {
                         selectedConversions.has(conversion.conversion_id)
                           ? "bg-muted/50"
                           : isMatch
-                          ? "bg-green-700 text-accent-foreground" // Highlight matching rows
+                          ? "bg-teal-500 text-accent hover:bg-teal-800" // Highlight matching rows
                           : ""
                       }
                     >
@@ -490,7 +500,20 @@ const Conversions: React.FC = () => {
                       <TableCell>{conversion.deploy_id}</TableCell>
                       <TableCell>{conversion.mailer_id}</TableCell>
                       <TableCell>{conversion.entity_id}</TableCell>
-                      <TableCell className="text-right font-medium">
+                      <TableCell
+                        className={cn("text-right font-bold", {
+                          "text-yellow-600": conversion.price <= 10,
+                          "text-green-600 ":
+                            conversion.price > 10 && conversion.price <= 20,
+                          "text-blue-600":
+                            conversion.price > 20 && conversion.price <= 30,
+                          "text-purple-600":
+                            conversion.price > 30 && conversion.price <= 40,
+                          "text-pink-600":
+                            conversion.price > 40 && conversion.price < 75,
+                          "text-red-600": conversion.price >= 75,
+                        })}
+                      >
                         ${conversion.price.toFixed(2)}
                       </TableCell>
                     </TableRow>

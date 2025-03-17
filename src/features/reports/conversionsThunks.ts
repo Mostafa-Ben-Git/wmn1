@@ -1,7 +1,7 @@
-import { ConversionData, ConversionsResponse } from "@/types";
+import { ConversionData, ConversionsResponse, EflowConversion } from "@/types";
 import { createAsyncThunk } from "@reduxjs/toolkit";
+import axios from "axios";
 import { format } from "date-fns";
-import axios from 'axios';
 
 // Define interface for eFlow transformed data
 interface SponsorResults {
@@ -17,6 +17,7 @@ async function fetchCX3Data(
   endDate: string,
   page: number,
   limit: number,
+  isNew: boolean,
   sortField = "conversion_date",
   excludeBotTraffic = false,
   sortDescending = true
@@ -74,14 +75,14 @@ async function fetchCX3Data(
 
     return {
       conversion_id: item.conversion_id,
-      conversion_date: new Date(item.conversion_date),
+      conversion_date: format(new Date(item.conversion_date),'MMM d, yyyy HH:mm:ss'),
       offer_id: item.offer_id,
       offer_name: item.offer_name,
       deploy_id: subid1Parts.length > 1 ? subid1Parts[1] : "",
       mailer_id: subid1Parts.length > 3 ? subid1Parts[3] : "",
       entity_id: item.subid_3 || (subid1Parts.length > 4 ? subid1Parts[4] : ""),
       price: item.price,
-      isNew : limit <= 20,
+      isNew: isNew,
       sponsor_name: "cx3Ads",
     };
   });
@@ -99,7 +100,8 @@ async function fetchEflowData(
   startDate: string,
   endDate: string,
   page: number,
-  limit: number
+  limit: number,
+  isNew: boolean
 ): Promise<SponsorResults> {
   const baseUrl = "https://api.eflow.team/v1/affiliates/reporting/conversions";
 
@@ -122,11 +124,11 @@ async function fetchEflowData(
     },
   });
 
-  const response = await axios.post(url,payload ,{
+  const response = await axios.post(url, payload, {
     headers: {
       "Content-Type": "application/json",
       "x-eflow-api-key": "4szXGuiATDOCfhovX83SQ",
-    }
+    },
   });
 
   if (!response.status) {
@@ -136,9 +138,9 @@ async function fetchEflowData(
   const data = await response.data;
 
   // Transform eFlow data to match our structure
-  const transformedData = data.conversions.map((item : any) => ({
+  const transformedData = data.conversions.map((item: EflowConversion) => ({
     conversion_id: item.conversion_id,
-    conversion_date: new Date(item.conversion_unix_timestamp * 1000),
+    conversion_date: format(new Date(item.conversion_unix_timestamp * 1000),'MMM d, yyyy HH:mm:ss'),
     offer_id: item.relationship.offer.network_offer_id,
     offer_name: item.relationship.offer.name,
     sub1: item.sub1,
@@ -146,7 +148,7 @@ async function fetchEflowData(
     mailer_id: item.sub1.split("_")[3] || "",
     entity_id: item.sub3 || item.sub1.split("_")[4] || "",
     price: item.revenue,
-    isNew : limit <= 20,
+    isNew: isNew,
     sponsor_name: "Berserker",
   }));
 
@@ -183,6 +185,7 @@ export const fetchReports = createAsyncThunk(
       endDate,
       page = 1,
       limit = 1000,
+      isNew = false,
     }: {
       startDate: string;
       endDate: string;
@@ -191,19 +194,19 @@ export const fetchReports = createAsyncThunk(
       sortField?: string;
       excludeBotTraffic?: boolean;
       sortDescending?: boolean;
+      isNew?: boolean;
     },
     { rejectWithValue }
   ) => {
     try {
       // // Fetch data from both APIs concurrently
       const [cx3Result, eflowResult] = await Promise.all([
-        fetchCX3Data(startDate, endDate, page, limit),
-        fetchEflowData(startDate, endDate ,page,limit),
+        fetchCX3Data(startDate, endDate, page, limit, isNew),
+        fetchEflowData(startDate, endDate, page, limit, isNew),
       ]);
 
       const mergedResponse = mergeAndGroupResultsByDate(eflowResult, cx3Result);
 
-      console.log(mergedResponse)
       return mergedResponse;
     } catch (error) {
       return rejectWithValue(

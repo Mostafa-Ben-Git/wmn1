@@ -51,3 +51,17 @@ export interface ConversionsState {
   sortDirection: 'asc' | 'desc';
   filterValue : string
 }
+
+export interface EflowConversion {
+  conversion_id: string;
+  conversion_unix_timestamp: number;
+  relationship: {
+    offer: {
+      network_offer_id: string;
+      name: string;
+    };
+  };
+  sub1: string;
+  sub3?: string; // Optional field
+  revenue: number;
+}
